@@ -25,7 +25,7 @@ import java.util.Scanner;
  */
 public class AsyncHttpURLConnection {
   private static final int HTTP_TIMEOUT_MS = 5000;
-  private static final String HTTP_ORIGIN = "http://192.168.1.157";
+  private static final String HTTP_ORIGIN = "http://123.57.24.8";
   private static final String TAG="AsyncHttpURLConnection";
   private final String method;
   private final String url;

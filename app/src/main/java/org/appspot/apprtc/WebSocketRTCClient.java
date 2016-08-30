@@ -131,6 +131,11 @@ public class WebSocketRTCClient implements AppRTCClient,
         leaveUrl = getLeaveUrl(connectionParameters);
         hanging(connectionParameters,peerId);
       }
+
+      @Override
+      public void onRemoteIceCandiate(IceCandidate candidate) {
+
+      }
     };
 
     new RoomParametersFetcher(connectionUrl, null, callbacks).makeRequest();
@@ -178,6 +183,16 @@ public class WebSocketRTCClient implements AppRTCClient,
         WebSocketRTCClient.this.hanging(connectionParameters,peerId);
       }
 
+      @Override
+      public void onRemoteIceCandiate(final IceCandidate candidate) {
+        WebSocketRTCClient.this.executor.execute(new Runnable() {
+          @Override
+          public void run() {
+            //Log.d(TAG,params);
+            events.onRemoteIceCandidate(candidate);
+          }
+        });
+      }
     };
     new RoomParametersFetcher(hangUrl,null,callbacks).onHangGetConnnect();
   }
@@ -334,6 +349,11 @@ public class WebSocketRTCClient implements AppRTCClient,
           {
             //hanging(connectionParameters,peerId);
           }
+
+          @Override
+          public void onRemoteIceCandiate(IceCandidate candidate) {
+
+          }
         };
 
         new RoomParametersFetcher(answerUrl,json.toString(), callbacks).postRequest();
@@ -351,10 +371,10 @@ public class WebSocketRTCClient implements AppRTCClient,
       public void run() {
         Logout.verbose(TAG,"=====================");
         JSONObject json = new JSONObject();
-        jsonPut(json, "type", "candidate");
-        jsonPut(json, "label", candidate.sdpMLineIndex);
-        jsonPut(json, "id", candidate.sdpMid);
-        jsonPut(json, "candidate", candidate.sdp);
+        //jsonPut(json, "type", "candidate");
+        jsonPut(json, "sdpMLineIndex", candidate.sdpMLineIndex);
+        jsonPut(json, "sdpMid", candidate.sdpMid);
+        jsonPut(json, "candidate   ", candidate.sdp);
         if (initiator) {
           // Call initiator sends ice candidates to GAE server.
           if (roomState != ConnectionState.CONNECTED) {
@@ -366,6 +386,7 @@ public class WebSocketRTCClient implements AppRTCClient,
             events.onRemoteIceCandidate(candidate);
           }
         } else {
+          sendICEMessage(MessageType.MESSAGE, messageUrl, json.toString());
           // Call receiver sends ice candidates to websocket server.
           //wsClient.send(json.toString());
         }
@@ -469,6 +490,43 @@ public class WebSocketRTCClient implements AppRTCClient,
       throw new RuntimeException(e);
     }
   }
+
+  // Send SDP or ICE candidate to a room server.
+  private void sendICEMessage(
+          final MessageType messageType, final String url, final String message) {
+    Logout.verbose(TAG,"Room ====================="+url+" "+message);
+    String logInfo = url;
+    if (message != null) {
+      logInfo += ". Message: " + message;
+    }
+    Log.d(TAG, "C->GAE: " + logInfo);
+    AsyncHttpURLConnection httpConnection = new AsyncHttpURLConnection(
+            "POST", url, message, new AsyncHttpEvents() {
+      @Override
+      public void onHttpError(String errorMessage) {
+        reportError("GAE POST error: " + errorMessage);
+      }
+
+      @Override
+      public void onHttpComplete(String response,int peerId) {
+        //sendLeaveMessage(MessageType.LEAVE, leaveUrl, null);
+//          if (messageType == MessageType.MESSAGE) {
+//            try {
+//              JSONObject roomJson = new JSONObject(response);
+//              String result = roomJson.getString("result");
+//              if (!result.equals("SUCCESS")) {
+//                reportError("GAE POST error: " + result);
+//              }
+//            } catch (JSONException e) {
+//              reportError("GAE POST JSON error: " + e.toString());
+//            }
+//          }
+      }
+    });
+    httpConnection.send();
+
+  }
+
 
   // Send SDP or ICE candidate to a room server.
   private void sendPostMessage(

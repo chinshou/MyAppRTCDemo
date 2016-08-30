@@ -31,6 +31,7 @@ import android.view.Window;
 import android.view.WindowManager.LayoutParams;
 import android.widget.Toast;
 
+import org.webrtc.DataChannel;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
 import org.webrtc.PeerConnection;
@@ -39,6 +40,8 @@ import org.webrtc.SessionDescription;
 import org.webrtc.StatsReport;
 import org.webrtc.RendererCommon.ScalingType;
 import org.webrtc.SurfaceViewRenderer;
+
+import java.nio.ByteBuffer;
 
 /**
  * Activity for peer connection call setup, call waiting
@@ -135,6 +138,7 @@ public class CallActivity extends Activity
   private boolean callControlFragmentVisible = true;
   private long callStartedTimeMs = 0;
 
+  private int count;
   // Controls
   CallFragment callFragment;
   HudFragment hudFragment;
@@ -347,6 +351,9 @@ public class CallActivity extends Activity
     if (!iceConnected || !callFragment.isAdded()) {
       return;
     }
+
+    count++;
+    sendData("hello:"+String.valueOf(count));
     // Show/hide call control fragment
     callControlFragmentVisible = !callControlFragmentVisible;
     FragmentTransaction ft = getFragmentManager().beginTransaction();
@@ -695,5 +702,20 @@ public class CallActivity extends Activity
   @Override
   public void onPeerConnectionError(final String description) {
     reportError(description);
+  }
+
+  @Override
+  public void onReceivedData(String command)
+  {
+    logAndToast("dataChannel:"+command);
+    Log.d(TAG,"++++++++++++++++++++++++++++++++++++dataChannel:"+command);
+  }
+
+  public void sendData(final String data) {
+
+    ByteBuffer buffer = ByteBuffer.wrap(data.getBytes());
+    peerConnectionClient.getPCDataChannel().send(new DataChannel.Buffer(buffer, false));
+
+
   }
 }

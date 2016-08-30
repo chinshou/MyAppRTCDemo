@@ -93,10 +93,12 @@ public interface AppRTCClient {
     public SignalingParameters(String clientId,
             SessionDescription offerSdp, List<IceCandidate> iceCandidates) {
       //PeerConnection.IceServer iceServer=new PeerConnection.IceServer("stun:stun.l.google.com:19302");
-      PeerConnection.IceServer iceServer=new PeerConnection.IceServer("stun:192.168.1.157:19302");
-
+      //PeerConnection.IceServer iceServer=new PeerConnection.IceServer("stun:192.168.1.157:19302");
+      PeerConnection.IceServer iceServer0=new PeerConnection.IceServer("stun:123.57.24.8:19302");
       this.iceServers =new LinkedList<PeerConnection.IceServer>();
-      //this.iceServers.add(iceServer);
+      PeerConnection.IceServer iceServer1=new PeerConnection.IceServer("turn:123.57.24.8:3478","root","geekon");
+      this.iceServers.add(iceServer0);
+      this.iceServers.add(iceServer1);
       this.initiator = false;
       this.clientId = clientId;
       this.wssUrl = null;

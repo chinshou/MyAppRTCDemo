@@ -11,6 +11,7 @@
 package org.appspot.apprtc;
 
 import android.content.Context;
+import android.media.MediaRecorder;
 import android.os.ParcelFileDescriptor;
 import android.os.Environment;
 import android.util.Log;
@@ -42,6 +43,7 @@ import org.webrtc.voiceengine.WebRtcAudioManager;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.Timer;
@@ -94,6 +96,9 @@ public class PeerConnectionClient {
 
   private PeerConnectionFactory factory;
   private PeerConnection peerConnection;
+  private DataChannel dataChannel;
+  private DataChannel receiveChannel;
+  private DcObserver dcObserver;
   PeerConnectionFactory.Options options = null;
   private VideoSource videoSource;
   private boolean videoCallEnabled;
@@ -126,6 +131,43 @@ public class PeerConnectionClient {
   private VideoTrack localVideoTrack;
   private VideoTrack remoteVideoTrack;
 
+
+  private class DcObserver implements DataChannel.Observer {
+
+    @Override
+    public void onMessage(final DataChannel.Buffer buffer) {
+
+      ByteBuffer data = buffer.data;
+      //byte[] bytes = new byte[data.remaining()];
+      byte[] bytes = new byte[data.capacity()];
+      data.get(bytes);
+      final String command = new String(bytes);
+
+      executor.execute(new Runnable() {
+        public void run() {
+          events.onReceivedData(command);
+        }
+      });
+
+    }
+
+    @Override
+    public void onStateChange() {
+      Log.d(TAG, "DataChannel: onStateChange: " + dataChannel.state());
+    }
+
+    @Override
+    public void onBufferedAmountChange(long var1)
+    {
+      Log.d(TAG, "DataChannel: onBufferedAmountChange: " + var1);
+    }
+  }
+
+
+  public DataChannel  getPCDataChannel()
+  {
+    return  dataChannel;
+  }
   /**
    * Peer connection parameters.
    */
@@ -210,6 +252,8 @@ public class PeerConnectionClient {
      * Callback fired once peer connection error happened.
      */
     public void onPeerConnectionError(final String description);
+
+    public void onReceivedData(String command);
   }
 
   private PeerConnectionClient() {
@@ -471,7 +515,7 @@ public class PeerConnectionClient {
     peerConnection = factory.createPeerConnection(
         rtcConfig, pcConstraints, pcObserver);
     isInitiator = false;
-
+    createDataChannel(peerConnection);
     // Set default WebRTC tracing and INFO libjingle logging.
     // NOTE: this _must_ happen while |factory| is alive!
     Logging.enableTracing(
@@ -516,6 +560,13 @@ public class PeerConnectionClient {
     }
 
     Log.d(TAG, "Peer connection created.");
+  }
+
+  private void createDataChannel(PeerConnection pc)
+  {
+    dataChannel=pc.createDataChannel("dataChannel",new DataChannel.Init());
+    dcObserver=new DcObserver();
+    dataChannel.registerObserver(dcObserver);
   }
 
   private void closeInternal() {
@@ -1022,8 +1073,12 @@ public class PeerConnectionClient {
 
     @Override
     public void onDataChannel(final DataChannel dc) {
-      reportError("AppRTC doesn't use data channels, but got: " + dc.label()
-          + " anyway!");
+      Log.d(TAG,dc.label()+"-----dataChannel-------");
+      receiveChannel=dc;
+      receiveChannel.registerObserver(new DcObserver());
+//      reportError("AppRTC doesn't use data channels, but got: " + dc.label()
+//          + " anyway!");
+
     }
 
     @Override
@@ -1102,6 +1157,8 @@ public class PeerConnectionClient {
         }
       });
     }
+
+
 
     @Override
     public void onCreateFailure(final String error) {

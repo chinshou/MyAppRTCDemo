@@ -54,7 +54,7 @@ public class RoomParametersFetcher {
     CONNECTED,
     SIGNING_OUT_WAITING,
     SIGNING_OUT,
-  };
+  }
 
   private static final String TAG = "RoomRTCClient";
   private static final int TURN_HTTP_TIMEOUT_MS = 5000;
@@ -92,7 +92,7 @@ public class RoomParametersFetcher {
 
     public void startHangingGet(int peerId);
 
-    //public void onRemoteIceCandiate(IceCandidate candidate);
+    public void onRemoteIceCandiate(IceCandidate candidate);
 
   }
 
@@ -151,15 +151,20 @@ public class RoomParametersFetcher {
           }
         } else {
           //add ice candiate
+
           IceCandidate candidate = new IceCandidate(
                   message.getString("sdpMid"),
                   message.getInt("sdpMLineIndex"),
                   message.getString("candidate"));
           iceCandidates.add(candidate);
+          Log.d(TAG,"++++++++++++++++++++++++++++++++++++iceCandidate size:"+iceCandidates.size());
+          if (iceCandidates.size()>1){
+            events.onRemoteIceCandiate(candidate);
+          }
         }
-        if(offerSdp!=null&&iceCandidates.size()==8)
+        if(offerSdp!=null&&iceCandidates.size()==1)
         {
-          Log.d(TAG,"Room iceCandidates==8");
+          Log.d(TAG,"Room iceCandidates size:"+iceCandidates.size());
           SignalingParameters params = new SignalingParameters(String.valueOf(peerId),
                   offerSdp, iceCandidates);
           events.onSignalingParametersReady(params);
@@ -170,7 +175,6 @@ public class RoomParametersFetcher {
     }
     events.startHangingGet(myId);
   }
-
 
   public RoomParametersFetcher(String roomUrl, String roomMessage,
                                final RoomParametersFetcherEvents events) {
@@ -188,6 +192,10 @@ public class RoomParametersFetcher {
 
   public void makeRequest() {
     Logout.verbose(TAG,"=====================");
+    if(iceCandidates!=null)
+      if (iceCandidates.size()>0)
+        iceCandidates.clear();
+
     Log.d(TAG, "Room Get: " + roomUrl);
     httpConnection = new AsyncHttpURLConnection(
             "GET", roomUrl, roomMessage,
