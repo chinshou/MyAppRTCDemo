@@ -67,10 +67,13 @@ public class RoomParametersFetcher {
   private static int myId;
   private static String myName;
   private static State state;
+  private boolean isinit=true;
+  private boolean hasTriggerSingnalReady=false;
 
 
   private static LinkedList<IceCandidate> iceCandidates = null;
   private static SessionDescription offerSdp = null;
+  private static SessionDescription answerSdp = null;
   /**
    * Room parameters fetcher callbacks.
    */
@@ -92,7 +95,9 @@ public class RoomParametersFetcher {
 
     public void startHangingGet(int peerId);
 
-    public void onRemoteIceCandiate(IceCandidate candidate);
+    public void onRemoteIceCandidate(IceCandidate candidate);
+
+    public void onRemoteDescription( SessionDescription sdp);
 
   }
 
@@ -148,6 +153,14 @@ public class RoomParametersFetcher {
                     message.getString("sdp"));
             //PeerConnection.IceServer turnServers=new PeerConnection.IceServer("stun:git.geekon.cn:12345");
 
+          }else
+          {
+            answerSdp=new SessionDescription(
+                    SessionDescription.Type.fromCanonicalForm(messageType),
+                    message.getString("sdp"));
+            SignalingParameters params= new SignalingParameters(String.valueOf(peerId),
+                    answerSdp, iceCandidates);
+            events.onRemoteDescription(answerSdp);
           }
         } else {
           //add ice candiate
@@ -157,18 +170,32 @@ public class RoomParametersFetcher {
                   message.getInt("sdpMLineIndex"),
                   message.getString("candidate"));
           iceCandidates.add(candidate);
-          Log.d(TAG,"++++++++++++++++++++++++++++++++++++iceCandidate size:"+iceCandidates.size());
-          if (iceCandidates.size()>1){
-            events.onRemoteIceCandiate(candidate);
+
+          //Log.d(TAG,"++++++++++++++++++++++++++++++++++++iceCandidate size:"+iceCandidates.size());
+          /*
+          if(isinit)
+          {
+            events.onRemoteIceCandidate(candidate);
+          }else if (hasTriggerSingnalReady&&offerSdp!=null) {
+            events.onRemoteIceCandidate(candidate);
           }
+          */
+          if (iceCandidates.size()>1&&!isinit){
+            events.onRemoteIceCandidate(candidate);
+          }else if(isinit)
+            events.onRemoteIceCandidate(candidate);
         }
+
+        //if(offerSdp!=null&&iceCandidates.size()==1&&!hasTriggerSingnalReady)
         if(offerSdp!=null&&iceCandidates.size()==1)
         {
+          //hasTriggerSingnalReady=true;
           Log.d(TAG,"Room iceCandidates size:"+iceCandidates.size());
-          SignalingParameters params = new SignalingParameters(String.valueOf(peerId),
-                  offerSdp, iceCandidates);
-          events.onSignalingParametersReady(params);
+          SignalingParameters params= new SignalingParameters(String.valueOf(peerId),
+                    offerSdp, iceCandidates);
+            events.onSignalingParametersReady(params);
         }
+
       }
     }catch (Exception e) {
 
@@ -183,8 +210,11 @@ public class RoomParametersFetcher {
     {
       peers=new Hashtable<Integer, String>();
     }
-    if(iceCandidates==null)
-      iceCandidates=new LinkedList<IceCandidate>() ;
+    if(iceCandidates==null) {
+      iceCandidates = new LinkedList<IceCandidate>();
+      answerSdp=null;
+      offerSdp=null;
+    }
     this.roomUrl = roomUrl;
     this.roomMessage = roomMessage;
     this.events = events;
@@ -260,7 +290,8 @@ public class RoomParametersFetcher {
             }
             if(Integer.parseInt(values[2])==1) {
               peers.put(Integer.parseInt(values[1]), values[0]);
-              events.onPeerConnected(Integer.parseInt(values[1]));
+              if(isinit)
+                events.onPeerConnected(Integer.parseInt(values[1]));
             }
           }
         }

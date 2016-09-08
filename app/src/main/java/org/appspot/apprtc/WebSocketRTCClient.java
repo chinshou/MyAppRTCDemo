@@ -25,6 +25,8 @@ import org.json.JSONObject;
 import org.webrtc.IceCandidate;
 import org.webrtc.SessionDescription;
 
+import java.util.LinkedList;
+
 /**
  * Negotiates signaling for chatting with apprtc.appspot.com "rooms".
  * Uses the client<->server specifics of the apprtc AppEngine webapp.
@@ -56,7 +58,7 @@ public class WebSocketRTCClient implements AppRTCClient,
   private RoomConnectionParameters connectionParameters;
   private String messageUrl;
   private String leaveUrl;
-  private int clientId=100;
+  private int clientId;
   private static int myId;
   public WebSocketRTCClient(SignalingEvents events, LooperExecutor executor) {
     Logout.verbose(TAG,"=====================");
@@ -116,7 +118,22 @@ public class WebSocketRTCClient implements AppRTCClient,
       @Override
       public void onPeerConnected(int peerId)
       {
+        //TODO
+        LinkedList<IceCandidate> iceCandidates = new LinkedList<IceCandidate>();
+        SessionDescription offerSdp=null;
+        SignalingParameters params = new SignalingParameters(String.valueOf(peerId),
+                offerSdp,iceCandidates);
+        params.initiator=true;
+        clientId=peerId;
+        messageUrl = getMessageUrl(connectionParameters, peerId);
+        //leaveUrl = getLeaveUrl(connectionParameters, signalingParameters);
+        Log.d(TAG, "Message URL: " + messageUrl);
+        Log.d(TAG, "Leave URL: " + leaveUrl);
+        roomState = ConnectionState.CONNECTED;
 
+        // Fire connection and signaling parameters events.
+        events.onConnectedToRoom(params);
+        //hanging(connectionParameters,peerId);
       }
 
       @Override
@@ -133,7 +150,12 @@ public class WebSocketRTCClient implements AppRTCClient,
       }
 
       @Override
-      public void onRemoteIceCandiate(IceCandidate candidate) {
+      public void onRemoteIceCandidate(IceCandidate candidate) {
+
+      }
+
+      public void onRemoteDescription(SessionDescription sdp)
+      {
 
       }
     };
@@ -169,7 +191,6 @@ public class WebSocketRTCClient implements AppRTCClient,
       public void onPeerConnected(int peerId)
       {
 
-        //hanging(connectionParameters,peerId);
       }
 
       @Override
@@ -184,12 +205,23 @@ public class WebSocketRTCClient implements AppRTCClient,
       }
 
       @Override
-      public void onRemoteIceCandiate(final IceCandidate candidate) {
+      public void onRemoteIceCandidate(final IceCandidate candidate) {
         WebSocketRTCClient.this.executor.execute(new Runnable() {
           @Override
           public void run() {
             //Log.d(TAG,params);
             events.onRemoteIceCandidate(candidate);
+          }
+        });
+      }
+
+      public void onRemoteDescription(final SessionDescription sdp)
+      {
+        WebSocketRTCClient.this.executor.execute(new Runnable() {
+          @Override
+          public void run() {
+            //Log.d(TAG,params);
+            events.onRemoteDescription(sdp);
           }
         });
       }
@@ -281,22 +313,61 @@ public class WebSocketRTCClient implements AppRTCClient,
     executor.execute(new Runnable() {
       @Override
       public void run() {
-        Logout.verbose(TAG,"=====================");
-        if (roomState != ConnectionState.CONNECTED) {
-          reportError("Sending offer SDP in non connected state.");
+        Logout.verbose(TAG,"=========——————————============");
+        if (connectionParameters.loopback) {
+          Log.e(TAG, "Sending answer in loopback mode.");
           return;
         }
         JSONObject json = new JSONObject();
         jsonPut(json, "sdp", sdp.description);
         jsonPut(json, "type", "offer");
-        sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
-        if (connectionParameters.loopback) {
-          // In loopback mode rename this offer to answer and route it back.
-          SessionDescription sdpAnswer = new SessionDescription(
-              SessionDescription.Type.fromCanonicalForm("answer"),
-              sdp.description);
-          events.onRemoteDescription(sdpAnswer);
-        }
+
+        String offerUrl = getMessageUrl(connectionParameters,clientId);
+        Log.d(TAG, "answer: " + offerUrl);
+        roomState = ConnectionState.CONNECTED;
+        //wsClient = new WebSocketChannelClient(executor, this);
+
+        RoomParametersFetcherEvents callbacks = new RoomParametersFetcherEvents() {
+          @Override
+          public void onSignalingParametersReady(
+                  final SignalingParameters params) {
+          }
+
+          @Override
+          public void onSignalingParametersError(String description) {
+            //WebSocketRTCClient.this.reportError(description);
+          }
+
+          @Override
+          public void onPeerConnected(int peerId)
+          {
+
+
+          }
+
+          @Override
+          public void onMessageFromPeer(int peerId,String message)
+          {
+            ;
+          }
+
+          public void startHangingGet(int peerId)
+          {
+            //hanging(connectionParameters,peerId);
+          }
+
+          @Override
+          public void onRemoteIceCandidate(IceCandidate candidate) {
+
+          }
+
+          public void onRemoteDescription(SessionDescription sdp)
+          {
+
+          }
+        };
+
+        new RoomParametersFetcher(offerUrl,json.toString(), callbacks).postRequest();
       }
     });
   }
@@ -351,7 +422,11 @@ public class WebSocketRTCClient implements AppRTCClient,
           }
 
           @Override
-          public void onRemoteIceCandiate(IceCandidate candidate) {
+          public void onRemoteIceCandidate(IceCandidate candidate) {
+
+          }
+
+          public void onRemoteDescription(SessionDescription sdp){
 
           }
         };
@@ -374,7 +449,7 @@ public class WebSocketRTCClient implements AppRTCClient,
         //jsonPut(json, "type", "candidate");
         jsonPut(json, "sdpMLineIndex", candidate.sdpMLineIndex);
         jsonPut(json, "sdpMid", candidate.sdpMid);
-        jsonPut(json, "candidate   ", candidate.sdp);
+        jsonPut(json, "candidate", candidate.sdp);
         if (initiator) {
           // Call initiator sends ice candidates to GAE server.
           if (roomState != ConnectionState.CONNECTED) {

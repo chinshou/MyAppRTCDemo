@@ -69,7 +69,7 @@ public interface AppRTCClient {
    */
   public static class SignalingParameters {
     public final List<PeerConnection.IceServer> iceServers;
-    public final boolean initiator;
+    public boolean initiator;
     public final String clientId;
     public final String wssUrl;
     public final String wssPostUrl;
