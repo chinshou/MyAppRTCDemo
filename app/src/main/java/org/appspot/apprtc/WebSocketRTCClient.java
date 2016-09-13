@@ -118,7 +118,6 @@ public class WebSocketRTCClient implements AppRTCClient,
       @Override
       public void onPeerConnected(int peerId)
       {
-        //TODO
         LinkedList<IceCandidate> iceCandidates = new LinkedList<IceCandidate>();
         SessionDescription offerSdp=null;
         SignalingParameters params = new SignalingParameters(String.valueOf(peerId),
